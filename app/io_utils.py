@@ -1,3 +1,4 @@
+import errno
 import os
 import re
 import logging
@@ -21,9 +22,28 @@ ALLOWED_EXTS = {
 
 
 def ensure_public_dir(base: str) -> str:
-    public_dir = os.path.join(base, "public")
-    os.makedirs(public_dir, exist_ok=True)
-    return public_dir
+    env_dir = (os.getenv("HTMLSUMMARY_PUBLIC_DIR") or "").strip()
+    candidate = env_dir or os.path.join(base, "public")
+    try:
+        os.makedirs(candidate, exist_ok=True)
+        return candidate
+    except OSError as exc:
+        if exc.errno not in (errno.EROFS, errno.EPERM, errno.EACCES):
+            raise
+        fallback_base = (
+            (os.getenv("XDG_CACHE_HOME") or "").strip()
+            or (os.getenv("TMPDIR") or "").strip()
+            or "/tmp"
+        )
+        fallback = os.path.join(fallback_base, "htmlsummary_public")
+        os.makedirs(fallback, exist_ok=True)
+        logger.warning(
+            "Falling back to writable public dir at %s (original=%s, reason=%s)",
+            fallback,
+            candidate,
+            exc,
+        )
+        return fallback
 
 
 def sanitize_filename(name: str) -> str:
