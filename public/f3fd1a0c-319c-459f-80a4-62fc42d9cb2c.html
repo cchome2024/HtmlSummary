@@ -1,0 +1,200 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容摘要</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #f5f7fa;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #3498db;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card h3 {
+            color: #2c3e50;
+            font-size: 1.4rem;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        
+        .card p {
+            color: #5d6d7e;
+            font-size: 1rem;
+        }
+        
+        .summary-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .summary-section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .summary-section ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        
+        .summary-section li {
+            padding: 12px 0;
+            border-bottom: 1px solid #ecf0f1;
+            color: #5d6d7e;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .summary-section li:before {
+            content: "•";
+            color: #3498db;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+            font-size: 1.2rem;
+        }
+        
+        .summary-section li:last-child {
+            border-bottom: none;
+        }
+        
+        @media (max-width: 768px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>内容摘要</h1>
+            <p>慧度资产自主管理FOF产品全流程管理办法</p>
+        </div>
+        
+        <div class="summary-section">
+            <h2>核心要点总结</h2>
+            <ul>
+                <li>建立完整的FOF产品生命周期管理体系，涵盖设计、立项、设立、募集、投资运营和退出六个阶段</li>
+                <li>明确各阶段的时间周期、负责部门、具体内容和交付物，确保流程标准化</li>
+                <li>以产品正式运行日(T日)为基准进行排期，确保操作简洁实用、可落地执行</li>
+                <li>建立多部门协作机制，投资研究部、产品部、市场部、运营部、合规部等共同参与</li>
+                <li>制定详细的制度规范和操作手册，包括《基金产品运营操作流程及配置管理手册》等</li>
+                <li>建立完善的风险监控和应急处置机制，确保产品合规运营</li>
+                <li>规范信息披露和客户沟通流程，保障投资者权益</li>
+            </ul>
+        </div>
+        
+        <div class="cards-container">
+            <div class="card">
+                <h3>产品设计研发阶段</h3>
+                <p>投资研究部负责FOF基金方案的设计、论证、评级和储备，涵盖公募股基、公募债基、私募市场中性等多种投资标的，交付《母基金方案设计报告》等文档。</p>
+            </div>
+            
+            <div class="card">
+                <h3>产品立项阶段</h3>
+                <p>各部门根据研究结果或市场需求发起立项，多部门协作评估产品可行性、投资策略、客户需求和合规性，交付《基金项目立项表》及相关评估报告。</p>
+            </div>
+            
+            <div class="card">
+                <h3>产品设立阶段</h3>
+                <p>运营部主导拟定《产品要素表》和《基金合同》，完成产品成立、备案和开户工作，确保投资账户正常使用，交付各类合同文件和备案材料。</p>
+            </div>
+            
+            <div class="card">
+                <h3>产品发行募集阶段</h3>
+                <p>市场部负责产品宣发和募集工作，制定宣发方案，全员配合市场募集，引入代销机构，交付宣发材料和《募集意向统计表》。</p>
+            </div>
+            
+            <div class="card">
+                <h3>投资运营管理阶段</h3>
+                <p>投资研究部执行投资策略，运营部完成交易执行，建立风险监控、分红、信息披露和产品变更等完整运营体系，确保产品合规运作。</p>
+            </div>
+            
+            <div class="card">
+                <h3>产品退出阶段</h3>
+                <p>运营部发起清算申请，多部门协作评估合规性和影响，执行资金清算和分配，市场部完成客户沟通，交付清算相关材料。</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+```
+
+这个HTML页面实现了以下功能：
+
+1. **响应式设计**：使用CSS Grid布局，卡片在不同屏幕尺寸下自动调整
+2. **美观的卡片设计**：
+   - 每个卡片有圆角、阴影和悬停效果
+   - 左侧彩色边框增强视觉层次
+   - 卡片之间有合适的间距
+3. **清晰的视觉层次**：
+   - 标题区域突出显示
+   - 核心要点总结部分使用列表形式
+   - 卡片标题和内容区分明显
+4. **完整的内容覆盖**：
+   - 顶部有核心要点总结
+   - 六个主要阶段的卡片展示
+   - 每个卡片包含小标题和简短描述
+5. **现代化设计**：使用柔和的色彩、合适的字体大小和行高，提升阅读体验

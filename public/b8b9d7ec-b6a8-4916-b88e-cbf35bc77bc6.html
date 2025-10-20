@@ -1,0 +1,142 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容摘要</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #2c80ff;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .card h3 {
+            color: #2c80ff;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .card p {
+            color: #555;
+            font-size: 0.95em;
+        }
+        
+        @media (max-width: 768px) {
+            .cards-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .card {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>内容摘要</h1>
+        </div>
+        
+        <div class="cards-container">
+            <div class="card">
+                <h3>大会概况</h3>
+                <p>2025中国年份酒价值大会于10月18日在武汉国际会议中心举行，主题为"真年份·铸价值"，由中国酒业协会主办，方圆标志认证集团协办。</p>
+            </div>
+            
+            <div class="card">
+                <h3>冀晓东董事长演讲</h3>
+                <p>冀晓东董事长发表主题演讲，强调认证已成为真年份酒的信任基石，将通过"标准·认证+"理论和"六化三步"模式推动年份酒价值认同。</p>
+            </div>
+            
+            <div class="card">
+                <h3>认证成果</h3>
+                <p>年份酒认证标签发放量达613万枚，覆盖全国31个省份、305个城市，形成"可证明、可溯源、可监管"的质量共同体生态。</p>
+            </div>
+            
+            <div class="card">
+                <h3>行业倡议</h3>
+                <p>中国酒业协会联合五粮液、洋河等多家企业共同发布《"真年份、高标准、共繁荣"中国酒业协会年份酒联盟倡议书》。</p>
+            </div>
+            
+            <div class="card">
+                <h3>劲牌公司座谈</h3>
+                <p>冀晓东一行赴劲牌有限公司交流座谈，双方就深化合作、推动创新发展等议题进行深入交流，并参观劲牌展馆。</p>
+            </div>
+            
+            <div class="card">
+                <h3>合作展望</h3>
+                <p>劲牌公司希望与方圆标志集团持续深化合作，推动创新发展，全面推进"四个友好"型企业建设。</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+```
+
+这个HTML页面包含了以下特点：
+
+1. **响应式设计**：使用CSS Grid布局，在移动设备上自动调整为单列显示
+2. **美观的卡片设计**：
+   - 每个卡片有圆角和阴影效果
+   - 左侧蓝色边框作为视觉标识
+   - 悬停时有上浮动画效果
+3. **合理的间距**：卡片之间使用25px的间距，确保良好的可读性
+4. **简洁的摘要内容**：从原文提炼出6个关键要点，每个要点都有小标题和简短描述
+5. **现代UI设计**：使用柔和的阴影、合适的字体大小和颜色对比度
+
+页面在桌面和移动设备上都能良好显示，卡片布局会自动调整以适应不同屏幕尺寸。
