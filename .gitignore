@@ -1,0 +1,33 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual envs
+.venv/
+venv/
+
+# Environment files (do NOT commit secrets)
+.env
+.env.*
+!.env.example
+
+# Generated public artifacts
+public/*.html
+public/*.htm
+
+# Session/cookies storage
+storage/*.json
+storage/**/*.json
+
+# Playwright local browsers (if configured to download into repo)
+ms-playwright/
+playwright/.cache/
+
+# Editors
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
