@@ -145,6 +145,16 @@ def _normalize_llm_html(s: str, title: str) -> str:
             inner = inner[5:].strip()
         text = inner
     lower = text.lower()
+    if "</html>" in lower:
+        end = lower.rfind("</html>") + len("</html>")
+        text = text[:end]
+        lower = text.lower()
+    if text.startswith("```html"):
+        text = text[len("```html"):].lstrip("\r\n")
+        lower = text.lower()
+    elif text.startswith("```"):
+        text = text[len("```"):].lstrip("\r\n")
+        lower = text.lower()
     if ("<html" in lower) or ("<!doctype" in lower):
         return text
     if "<" in text and ">" in text:
