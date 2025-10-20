@@ -312,11 +312,13 @@ async def summarize(
                     label = {"text": "文本总结", "cards": "卡片式总结", "flow": "流程图总结", "table": "表格总结"}.get(key, key)
                     srcdoc = doc.replace("\"", "&quot;")
                     sections.append(f"<section><h2>{label}</h2><iframe style='width:100%;height:480px;border:1px solid #e5e7eb;border-radius:8px' srcdoc=\"{srcdoc}\"></iframe></section>")
-                final_html = """<!doctype html><html lang=\"zh-CN\"><head>
-                <meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>
-                <title>{title}</title>
-                <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Helvetica,sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#1f2937}section{margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;background:#fff}h1{margin:0 0 8px}</style>
-                </head><body><h1>{title}</h1>{sections}</body></html>""".format(title=title or "内容摘要", sections="".join(sections))
+                page_title = title or "内容摘要"
+                sections_html = "".join(sections)
+                final_html = f"""<!doctype html><html lang="zh-CN"><head>
+                <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+                <title>{page_title}</title>
+                <style>body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Helvetica,sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#1f2937}}section{{margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;background:#fff}}h1{{margin:0 0 8px}}</style>
+                </head><body><h1>{page_title}</h1>{sections_html}</body></html>"""
             html = final_html
         except Exception as e:
             msg = f"LLM generation failed: {e}"
@@ -393,4 +395,3 @@ def get_public(result_id: str, download: Optional[int] = None):
     if download:
         headers["Content-Disposition"] = f"attachment; filename=summary-{result_id}.html"
     return HTMLResponse(content=html, headers=headers)
-
