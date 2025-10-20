@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 import logging
@@ -18,7 +19,7 @@ from .summarizer import (
     render_table_summary,
     render_text_summary,
 )
-from .llm_client import generate_html_with_llm
+from .llm_client import DEFAULT_PROMPTS, generate_html_with_llm
 
 
 DEBUG_ERRORS = bool(os.getenv("DEBUG_ERRORS", "").strip())
@@ -60,6 +61,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/")
 def index():
     # UI-only markup. Chinese text is encoded in UTF-8.
+    prompts_json = json.dumps(DEFAULT_PROMPTS, ensure_ascii=False)
     html = """
 <!doctype html>
 <html lang="zh-CN">
@@ -102,13 +104,76 @@ def index():
     .switch{appearance:none;position:relative;width:46px;height:26px;border-radius:999px;background:var(--border);outline:none;border:none;cursor:pointer}
     .switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:all .2s ease}
     .switch.active{background:var(--accent)}.switch.active::after{left:23px}
+    #llmPromptBlock{margin-top:18px}
+    #llmPromptBlock textarea{min-height:140px}
     @media (max-width: 980px){ .grid{ grid-template-columns:1fr } iframe{ height: 460px } }
   </style>
   <script>
     const THEME_KEY='hs_theme';
+    const DEFAULT_PROMPTS = __PROMPTS_PLACEHOLDER__;
+    const promptCache = Object.assign({}, DEFAULT_PROMPTS);
+    let promptDirty = false;
     function applyTheme(t){document.documentElement.setAttribute('data-theme',t);const s=document.getElementById('themeSwitch');if(s){s.classList.toggle('active',t==='dark');}}
     function initTheme(){const t=localStorage.getItem(THEME_KEY)||'dark';applyTheme(t);} 
     function toggleTheme(){const cur=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';localStorage.setItem(THEME_KEY,cur);applyTheme(cur);} 
+    function getSelectedFormat(){
+      const form = document.getElementById('f');
+      if (!form){ return 'text'; }
+      const radio = form.querySelector('input[name="format_choice"]:checked');
+      return radio ? radio.value : 'text';
+    }
+    function setPromptValue(value, markAuto){
+      const textarea = document.getElementById('llm_prompt');
+      if (!textarea){ return; }
+      textarea.value = value;
+      if (markAuto){
+        const fmt = getSelectedFormat();
+        promptCache[fmt] = value;
+        promptDirty = false;
+      }
+    }
+    function ensurePromptForFormat(force){
+      const form = document.getElementById('f');
+      const block = document.getElementById('llmPromptBlock');
+      const textarea = document.getElementById('llm_prompt');
+      if (!form || !block || !textarea){ return; }
+      const engine = form.engine.value || 'heuristic';
+      if (engine === 'llm'){
+        block.style.display = '';
+        const fmt = getSelectedFormat();
+        const tpl = promptCache[fmt] || DEFAULT_PROMPTS[fmt] || '';
+        if (force || !promptDirty){
+          setPromptValue(tpl, true);
+        }
+      } else {
+        block.style.display = 'none';
+      }
+    }
+    function initForm(){
+      const form = document.getElementById('f');
+      if (!form){ return; }
+      const promptField = document.getElementById('llm_prompt');
+      if (promptField){
+        promptField.addEventListener('input', ()=>{
+          promptDirty = true;
+          const fmt = getSelectedFormat();
+          promptCache[fmt] = promptField.value;
+        });
+      }
+      form.engine.addEventListener('change', ()=>{
+        ensurePromptForFormat(false);
+      });
+      form.querySelectorAll('input[name="format_choice"]').forEach(radio=>{
+        radio.addEventListener('change', ()=>{
+          if (document.getElementById('f').engine.value === 'llm'){
+            ensurePromptForFormat(true);
+          } else {
+            ensurePromptForFormat(false);
+          }
+        });
+      });
+      ensurePromptForFormat(false);
+    }
     async function submitForm(ev){
       ev.preventDefault();
       const form = document.getElementById('f');
@@ -118,15 +183,25 @@ def index():
       const title = form.title.value.trim() || '内容摘要';
       const length = form.length.value || '5';
       const engine = form.engine.value || 'heuristic';
-      const fmts = Array.from(form.querySelectorAll('input[name=format]:checked')).map(x=>x.value);
       if (!text && !url && !form.files.files.length){ return showError('请提供文本、URL 或上传文件'); }
-      if (!fmts.length){ return showError('请至少选择一种输出格式'); }
-      fd.append('formats', fmts.join(',')); fd.append('title', title); fd.append('length', length); fd.append('engine', engine);
+      const format = getSelectedFormat();
+      if (!format){ return showError('请选择输出格式'); }
+      fd.append('format', format);
+      fd.append('formats', format);
+      fd.append('title', title);
+      fd.append('length', length);
+      fd.append('engine', engine);
       if (text) fd.append('text', text); if (url) fd.append('url', url);
       for (const f of form.files.files){ fd.append('files', f); }
       fd.append('fetch_engine', form.fetch_engine.value);
       if (form.headful.checked) fd.append('headful','1'); if (form.persist_session.checked) fd.append('persist_session','1');
       if (form.referer.value) fd.append('referer', form.referer.value); if (form.timeout.value) fd.append('timeout', form.timeout.value);
+      if (engine === 'llm'){
+        const promptField = form.llm_prompt;
+        if (promptField && promptField.value.trim()){
+          fd.append('llm_prompt', promptField.value);
+        }
+      }
       setBusy(true);
       try{
         const res = await fetch('/summarize', { method: 'POST', body: fd });
@@ -142,7 +217,7 @@ def index():
     function copyLink(){ const link = document.getElementById('view').href; navigator.clipboard.writeText(link).then(()=>{ const s = document.getElementById('status'); s.textContent='链接已复制'; s.className='good'; }).catch(()=>{}); }
   </script>
 </head>
-<body onload="initTheme()">
+<body onload="initTheme();initForm()">
   <div class="topbar"><div class="inner"><div class="brand"><div class="logo"></div><div>HtmlSummary</div></div><div class="pill"><span class="muted">主题</span><button id="themeSwitch" class="switch" type="button" onclick="toggleTheme()"></button></div></div></div>
   <div class="wrap">
     <h1>HtmlSummary · 生成与发布摘要</h1>
@@ -175,10 +250,10 @@ https://mp.weixin.qq.com/xxx"></textarea>
         <input type="file" name="files" multiple accept=".txt,.md,.html,.htm,.pdf,image/*" />
         <label>输出格式</label>
         <div class="formats">
-          <label><input type="checkbox" name="format" value="text" checked /> 文本</label>
-          <label><input type="checkbox" name="format" value="cards" /> 卡片</label>
-          <label><input type="checkbox" name="format" value="flow" /> 流程图</label>
-          <label><input type="checkbox" name="format" value="table" /> 表格</label>
+          <label><input type="radio" name="format_choice" value="text" checked /> 文本</label>
+          <label><input type="radio" name="format_choice" value="cards" /> 卡片</label>
+          <label><input type="radio" name="format_choice" value="flow" /> 流程图</label>
+          <label><input type="radio" name="format_choice" value="table" /> 表格</label>
         </div>
         <div class="row"> 
           <label>引擎</label>
@@ -188,6 +263,11 @@ https://mp.weixin.qq.com/xxx"></textarea>
           </select>
           <label>长度</label>
           <input type="number" name="length" min="1" max="15" value="5" style="width:110px" />
+        </div>
+        <div id="llmPromptBlock" style="display:none">
+          <label>自定义提示词（LLM）</label>
+          <textarea name="llm_prompt" id="llm_prompt" placeholder="可根据需要调整提示词，支持 {title} 与 {input_text} 占位符。"></textarea>
+          <div class="hint">提示：仅在选择“大模型”时生效，可使用 {title} 和 {input_text} 占位符。</div>
         </div>
         <div class="row" style="margin-top:8px"> 
           <button id="btn" class="btn" type="submit">生成并发布</button>
@@ -216,14 +296,15 @@ https://mp.weixin.qq.com/xxx"></textarea>
 </body>
 </html>
     """
+    html = html.replace("__PROMPTS_PLACEHOLDER__", prompts_json)
     return HTMLResponse(content=html)
 
 
 @app.post("/summarize")
 async def summarize(
     text: Optional[str] = Form(None),
-    formats: Optional[str] = Form("text,cards,flowchart,table"),
-    format: Optional[str] = Form(None),
+    formats: Optional[str] = Form(None),
+    format: Optional[str] = Form("text"),
     title: Optional[str] = Form("内容摘要"),
     length: Optional[int] = Form(5),
     url: Optional[str] = Form(None),
@@ -234,6 +315,7 @@ async def summarize(
     referer: Optional[str] = Form(None),
     timeout: Optional[int] = Form(None),
     headers: Optional[str] = Form(None),
+    llm_prompt: Optional[str] = Form(None),
     files: Optional[List[UploadFile]] = None,
 ):
     try:
@@ -288,38 +370,38 @@ async def summarize(
         raise HTTPException(status_code=400, detail="No input text or files provided")
 
     merged = merge_texts(texts)
-    fmt_combined = formats or ""
-    if (not fmt_combined or not fmt_combined.strip()) and format:
-        fmt_combined = format
-    fmt_list = [x.strip().lower() for x in (fmt_combined or "").split(",") if x.strip()]
+    fmt_candidates: List[str] = []
+    if format:
+        fmt_candidates.append(format)
+    if formats:
+        fmt_candidates.extend([x for x in (formats or "").split(",") if x.strip()])
+    fmt_list: List[str] = []
+    for token in fmt_candidates:
+        key = (token or "").strip().lower()
+        if key and key not in fmt_list:
+            fmt_list.append(key)
+    if not fmt_list:
+        fmt_list = ["text"]
+    fmt_choice = fmt_list[0]
+    if len(fmt_list) > 1:
+        try:
+            logger.warning(f"Multiple formats requested; falling back to first: {fmt_choice}")
+        except Exception:
+            pass
 
     engine_used = (engine or "heuristic").lower()
     if engine_used == "llm":
-        if not fmt_list:
-            logger.warning("No formats specified for LLM generation")
-            raise HTTPException(status_code=400, detail="No formats specified. Use 'formats' (e.g. text,cards) or 'format' (single).")
+        fmt_for_llm = "flow" if fmt_choice in ("flow", "flowchart") else fmt_choice
+        if fmt_for_llm not in ("text", "cards", "flow", "table"):
+            raise HTTPException(status_code=400, detail=f"Unsupported format '{fmt_choice}' for LLM generation")
+        prompt_override = (llm_prompt or "").strip() if llm_prompt else ""
         try:
-            llm_results = []
-            for fmt in fmt_list:
-                key = "flow" if fmt in ("flow", "flowchart") else fmt
-                html_part = generate_html_with_llm(input_text=merged, title=title or "内容摘要", fmt=key)
-                llm_results.append((key, html_part))
-            if len(llm_results) == 1:
-                final_html = llm_results[0][1]
-            else:
-                sections = []
-                for key, doc in llm_results:
-                    label = {"text": "文本总结", "cards": "卡片式总结", "flow": "流程图总结", "table": "表格总结"}.get(key, key)
-                    srcdoc = doc.replace("\"", "&quot;")
-                    sections.append(f"<section><h2>{label}</h2><iframe style='width:100%;height:480px;border:1px solid #e5e7eb;border-radius:8px' srcdoc=\"{srcdoc}\"></iframe></section>")
-                page_title = title or "内容摘要"
-                sections_html = "".join(sections)
-                final_html = f"""<!doctype html><html lang="zh-CN"><head>
-                <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-                <title>{page_title}</title>
-                <style>body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,Helvetica,sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#1f2937}}section{{margin:24px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px;background:#fff}}h1{{margin:0 0 8px}}</style>
-                </head><body><h1>{page_title}</h1>{sections_html}</body></html>"""
-            html = final_html
+            html = generate_html_with_llm(
+                input_text=merged,
+                title=title or "内容摘要",
+                fmt=fmt_for_llm,
+                prompt_override=prompt_override or None,
+            )
         except Exception as e:
             msg = f"LLM generation failed: {e}"
             logger.exception(msg)
@@ -328,14 +410,17 @@ async def summarize(
             raise HTTPException(status_code=400, detail=msg)
     else:
         outputs = {}
-        if "text" in fmt_list:
+        fmt_key = fmt_choice
+        if fmt_key == "text":
             outputs["text"] = render_text_summary(merged, length=length or 5)
-        if "cards" in fmt_list:
+        elif fmt_key == "cards":
             outputs["cards"] = render_cards_summary(merged, length=length or 5)
-        if "flowchart" in fmt_list or "flow" in fmt_list:
+        elif fmt_key in ("flow", "flowchart"):
             outputs["flowchart"] = render_mermaid_flowchart(merged, length=(length or 5) + 1)
-        if "table" in fmt_list:
+        elif fmt_key == "table":
             outputs["table"] = render_table_summary(merged, length=(length or 5))
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format '{fmt_choice}' for heuristic engine")
         html = build_html_document(title or "内容摘要", merged, outputs)
 
     result_id = str(uuid.uuid4())
@@ -360,6 +445,7 @@ async def generate_api(payload: dict):
     input_content = (payload or {}).get("input_content")
     fmt = (payload or {}).get("format", "text")
     title = (payload or {}).get("title", "内容摘要")
+    prompt_override = (payload or {}).get("prompt") or (payload or {}).get("llm_prompt")
     if not input_content or not isinstance(input_content, str):
         raise HTTPException(status_code=400, detail="input_content must be a non-empty string")
     fmt_norm = fmt.strip().lower()
@@ -368,7 +454,13 @@ async def generate_api(payload: dict):
     if fmt_norm not in ("text", "cards", "flow", "table"):
         raise HTTPException(status_code=400, detail="format must be one of: text|card|flow|table")
     try:
-        html = generate_html_with_llm(input_text=input_content, title=title, fmt=fmt_norm if fmt_norm != "cards" else "cards")
+        prompt_text = (prompt_override.strip() if isinstance(prompt_override, str) else "") or None
+        html = generate_html_with_llm(
+            input_text=input_content,
+            title=title,
+            fmt=fmt_norm,
+            prompt_override=prompt_text,
+        )
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

@@ -61,6 +61,13 @@ PROMPT_TABLE = (
     "请先对文本进行简洁摘要，再生成表格形式的 HTML 页面。"
 )
 
+DEFAULT_PROMPTS = {
+    "text": PROMPT_TEXT,
+    "cards": PROMPT_CARDS,
+    "flow": PROMPT_FLOW,
+    "table": PROMPT_TABLE,
+}
+
 
 def _get_client():
     try:
@@ -94,26 +101,33 @@ def _get_client():
         )
 
 
+def _render_prompt_template(template: str, title: str, input_text: str) -> str:
+    try:
+        return template.format(title=title, input_text=input_text)
+    except Exception:
+        return (
+            template.replace("{title}", title)
+            .replace("{input_text}", input_text)
+        )
+
+
 def generate_html_with_llm(
     *,
     input_text: str,
     title: str,
     fmt: Literal["text", "cards", "flow", "table"],
     model: str | None = None,
+    prompt_override: str | None = None,
 ) -> str:
     client = _get_client()
     model = model or LLM_MODEL
 
-    if fmt == "text":
-        prompt = PROMPT_TEXT.format(title=title, input_text=input_text)
-    elif fmt == "cards":
-        prompt = PROMPT_CARDS.format(title=title, input_text=input_text)
-    elif fmt == "flow":
-        prompt = PROMPT_FLOW.format(title=title, input_text=input_text)
-    elif fmt == "table":
-        prompt = PROMPT_TABLE.format(title=title, input_text=input_text)
-    else:
+    template = DEFAULT_PROMPTS.get(fmt)
+    if not template:
         raise ValueError("Unsupported format for LLM generation")
+    override = (prompt_override or "").strip()
+    prompt_template = override or template
+    prompt = _render_prompt_template(prompt_template, title, input_text)
 
     resp = client.chat.completions.create(
         model=model,
