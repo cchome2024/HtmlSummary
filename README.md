@@ -63,6 +63,12 @@ Open `http://localhost:8000/public/<uuid>` to view the rendered HTML.
 - Supports: text input, URLs, file uploads, selecting formats, choosing `heuristic` or `llm` engine.
 - After generation, previews the published HTML and shows the public link and a download button.
 
+### Summary archive service (optional)
+1. Launch the companion Flask service: `python summary_service/app.py` (defaults to `http://127.0.0.1:8050`).
+2. Configure HtmlSummary to talk to it by setting `SUMMARY_SERVICE_BASE_URL` in `.env` (see `.env.example`).
+3. Generate a summary as usual, then click the new “保存摘要�?button in the preview panel to persist the HTML, original input, URLs, and uploaded file names into the archive.
+4. On success, the status area will show the detail link returned by the Flask service; failures will surface inline error messages.
+
 ### LLM-backed HTML generation
 
 - JSON API: `POST /generate`
@@ -71,9 +77,9 @@ Request body:
 
 ```json
 {
-  "input_content": "用户上传的文件内容或手动输入的文本",
+  "input_content": "用户上传的文件内容或手动输入的文�?,
   "format": "text|card|flow|table",
-  "title": "摘要的标题"
+  "title": "摘要的标�?
 }
 ```
 
@@ -142,7 +148,7 @@ Setup with DeepSeek:
 
 ```bash
 curl -X POST http://localhost:8000/summarize \
-  -F "text=这是一个用于测试的示例文本。它包含多句话，用于演示摘要功能。服务会返回多种摘要形式并生成HTML文件。" \
+  -F "text=这是一个用于测试的示例文本。它包含多句话，用于演示摘要功能。服务会返回多种摘要形式并生成HTML文件�? \
   -F "formats=text,cards,flowchart,table" \
   -F "title=示例摘要"
 ```
@@ -161,6 +167,6 @@ Summarize from URLs and text:
 ```bash
 curl -X POST http://localhost:8000/summarize \
   -F "url=https://example.com/article, https://example.com/notes" \
-  -F "text=补充说明：请按要点输出。" \
+  -F "text=补充说明：请按要点输出�? \
   -F formats=text,table
 ```

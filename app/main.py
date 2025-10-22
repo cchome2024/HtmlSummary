@@ -35,6 +35,7 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = ensure_public_dir(BASE_DIR)
+SUMMARY_SERVICE_URL = (os.getenv("SUMMARY_SERVICE_BASE_URL") or "http://127.0.0.1:8050").rstrip("/")
 
 # Logger
 logger = logging.getLogger("htmlsummary")
@@ -111,6 +112,12 @@ def index():
   <script>
     const THEME_KEY='hs_theme';
     const DEFAULT_PROMPTS = __PROMPTS_PLACEHOLDER__;
+    const SUMMARY_SERVICE_BASE_RAW = __SUMMARY_SERVICE_URL__;
+    const SUMMARY_SERVICE_BASE = typeof SUMMARY_SERVICE_BASE_RAW === 'string' ? SUMMARY_SERVICE_BASE_RAW.replace(/\\/+$/, '') : '';
+    const summaryServiceAvailable = SUMMARY_SERVICE_BASE.length > 0;
+    let lastSummaryPayload = null;
+    let summaryFormSnapshot = null;
+    let isSavingSummary = false;
     const promptCache = Object.assign({}, DEFAULT_PROMPTS);
     let promptDirty = false;
     function applyTheme(t){document.documentElement.setAttribute('data-theme',t);const s=document.getElementById('themeSwitch');if(s){s.classList.toggle('active',t==='dark');}}
@@ -173,9 +180,122 @@ def index():
         });
       });
       ensurePromptForFormat(false);
+      resetSaveState();
+    }
+    function captureFormSnapshot(){
+      const form = document.getElementById('f');
+      if (!form){ return null; }
+      const text = (form.text.value || '').trim();
+      const title = (form.title.value || '').trim() || '内容摘要';
+      const rawUrl = form.url.value || '';
+      const urls = rawUrl.split(/[\\n,]/).map((item)=>item.trim()).filter(Boolean);
+      const fileInput = form.files;
+      const fileList = fileInput && fileInput.files ? Array.from(fileInput.files) : [];
+      const filenames = fileList.map((file)=>file.name);
+      return { text, title, urls, filenames };
+    }
+    function getSaveButton(){
+      return document.getElementById('saveSummary');
+    }
+    function updateSaveButton(canSave){
+      const btn = getSaveButton();
+      if (!btn){ return; }
+      const enable = summaryServiceAvailable && canSave && !isSavingSummary;
+      btn.disabled = !enable;
+      if (!summaryServiceAvailable){
+        btn.title = '未配置摘要存档服务';
+      } else if (!canSave){
+        btn.title = '请先生成摘要';
+      } else {
+        btn.title = '';
+      }
+      if (!enable && !isSavingSummary){
+        btn.textContent = '保存摘要';
+      }
+    }
+    function setSaveBusy(busy){
+      const btn = getSaveButton();
+      if (!btn){ return; }
+      if (busy){
+        btn.disabled = true;
+        btn.textContent = '保存中...';
+      } else {
+        btn.textContent = '保存摘要';
+        updateSaveButton(Boolean(lastSummaryPayload && summaryFormSnapshot));
+      }
+    }
+    function resetSaveState(){
+      lastSummaryPayload = null;
+      summaryFormSnapshot = null;
+      updateSaveButton(false);
+    }
+    async function saveSummary(){
+      if (!summaryServiceAvailable){
+        const status = document.getElementById('status');
+        if (status){
+          status.textContent = '未配置摘要存档服务';
+          status.className = 'warn';
+        }
+        return;
+      }
+      if (!lastSummaryPayload || !summaryFormSnapshot){
+        const status = document.getElementById('status');
+        if (status){
+          status.textContent = '请先生成摘要';
+          status.className = 'warn';
+        }
+        return;
+      }
+      if (isSavingSummary){
+        return;
+      }
+      isSavingSummary = true;
+      setSaveBusy(true);
+      try{
+        const viewUrl = lastSummaryPayload.view_url_absolute || (location.origin + lastSummaryPayload.view_url);
+        const htmlRes = await fetch(viewUrl);
+        if (!htmlRes.ok){
+          throw new Error('无法获取摘要 HTML');
+        }
+        const htmlContent = await htmlRes.text();
+        const payload = {
+          user_input: summaryFormSnapshot.text,
+          urls: summaryFormSnapshot.urls,
+          filenames: summaryFormSnapshot.filenames,
+          html_content: htmlContent,
+          title: summaryFormSnapshot.title,
+          source_view_url: viewUrl,
+          result_id: lastSummaryPayload.result_id || ''
+        };
+        const response = await fetch(`${SUMMARY_SERVICE_BASE}/api/summaries`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(()=>null);
+        if (!response.ok){
+          const message = data && (data.error || data.detail) ? (data.error || data.detail) : `保存失败（${response.status}）`;
+          throw new Error(message);
+        }
+        const status = document.getElementById('status');
+        if (status){
+          status.textContent = data && data.detail_url ? `摘要已保存：${data.detail_url}` : '摘要已保存';
+          status.className = 'good';
+        }
+      }catch(err){
+        const status = document.getElementById('status');
+        if (status){
+          status.textContent = (err && err.message) ? err.message : '保存摘要失败';
+          status.className = 'bad';
+        }
+      }finally{
+        isSavingSummary = false;
+        setSaveBusy(false);
+      }
     }
     async function submitForm(ev){
       ev.preventDefault();
+      resetSaveState();
       const form = document.getElementById('f');
       const fd = new FormData();
       const text = form.text.value.trim();
@@ -212,8 +332,8 @@ def index():
       finally{ setBusy(false); }
     }
     function setBusy(b){ document.getElementById('btn').disabled = b; document.getElementById('status').textContent = b ? '正在生成与发布…' : ''; }
-    function showError(msg, trace){ const el = document.getElementById('status'); el.textContent = msg; el.className='bad'; const pre = document.getElementById('trace'); if (pre){ if (trace){ pre.style.display='block'; pre.textContent = String(trace);} else { pre.style.display='none'; pre.textContent=''; } } const resBox = document.getElementById('result'); if (resBox){ resBox.style.display='block'; } const viewA = document.getElementById('view'); const downA = document.getElementById('download'); if (viewA){ viewA.href = '#'; viewA.textContent = '无可用链接（生成失败）'; } if (downA){ downA.href = '#'; } const frame = document.getElementById('frame'); if (frame){ const safe = (s)=> String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,Segoe UI,Arial;padding:16px;color:#111}.bad{color:#b91c1c}pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:8px}</style><title>Error</title></head><body><h2 class="bad">生成失败</h2><p>${safe(msg)}</p>${trace?`<pre>${safe(trace)}</pre>`:''}</body></html>`; frame.srcdoc = html; } }
-    function showResult(data){ const s = document.getElementById('status'); if (data && data.warning){ s.textContent='生成成功（已回退）'; s.className='warn'; } else { s.textContent='生成成功'; s.className='good'; } const errBox = document.getElementById('errorbox'); if (errBox){ errBox.style.display='none'; } const v = location.origin + data.view_url; document.getElementById('view').href = v; document.getElementById('download').href = location.origin + data.download_url; document.getElementById('view').textContent = v; document.getElementById('frame').src = data.view_url; document.getElementById('result').style.display='block'; }
+    function showError(msg, trace){ const el = document.getElementById('status'); el.textContent = msg; el.className='bad'; const pre = document.getElementById('trace'); if (pre){ if (trace){ pre.style.display='block'; pre.textContent = String(trace);} else { pre.style.display='none'; pre.textContent=''; } } const resBox = document.getElementById('result'); if (resBox){ resBox.style.display='block'; } const viewA = document.getElementById('view'); const downA = document.getElementById('download'); if (viewA){ viewA.href = '#'; viewA.textContent = '无可用链接（生成失败）'; } if (downA){ downA.href = '#'; } const frame = document.getElementById('frame'); if (frame){ const safe = (s)=> String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,Segoe UI,Arial;padding:16px;color:#111}.bad{color:#b91c1c}pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:8px}</style><title>Error</title></head><body><h2 class="bad">生成失败</h2><p>${safe(msg)}</p>${trace?`<pre>${safe(trace)}</pre>`:''}</body></html>`; frame.srcdoc = html; } resetSaveState(); }
+    function showResult(data){ const s = document.getElementById('status'); if (data && data.warning){ s.textContent='生成成功（已回退）'; s.className='warn'; } else { s.textContent='生成成功'; s.className='good'; } const errBox = document.getElementById('errorbox'); if (errBox){ errBox.style.display='none'; } const v = location.origin + data.view_url; document.getElementById('view').href = v; document.getElementById('download').href = location.origin + data.download_url; document.getElementById('view').textContent = v; document.getElementById('frame').src = data.view_url; document.getElementById('result').style.display='block'; lastSummaryPayload = Object.assign({}, data, { view_url_absolute: v }); summaryFormSnapshot = captureFormSnapshot(); updateSaveButton(true); }
     function copyLink(){ const link = document.getElementById('view').href; navigator.clipboard.writeText(link).then(()=>{ const s = document.getElementById('status'); s.textContent='链接已复制'; s.className='good'; }).catch(()=>{}); }
   </script>
 </head>
@@ -283,6 +403,7 @@ https://mp.weixin.qq.com/xxx"></textarea>
           <div class="links"> 
             <a id="view" href="#" target="_blank">打开公共链接</a>
             <a id="download" href="#">下载 HTML</a>
+            <button id="saveSummary" class="btn" onclick="saveSummary()" type="button" disabled>保存摘要</button>
             <button class="btn secondary" onclick="copyLink()" type="button">复制链接</button>
           </div>
           <div class="preview"> 
@@ -296,7 +417,9 @@ https://mp.weixin.qq.com/xxx"></textarea>
 </body>
 </html>
     """
+    summary_service_url_json = json.dumps(SUMMARY_SERVICE_URL, ensure_ascii=False)
     html = html.replace("__PROMPTS_PLACEHOLDER__", prompts_json)
+    html = html.replace("__SUMMARY_SERVICE_URL__", summary_service_url_json)
     return HTMLResponse(content=html)
 
 

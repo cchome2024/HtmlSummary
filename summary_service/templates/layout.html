@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Summary Archive{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALElK"
+      crossorigin="anonymous"
+    />
+    <style>
+      body {
+        padding-top: 2rem;
+      }
+      .summary-table td {
+        vertical-align: middle;
+      }
+      .urls-list,
+      .files-list {
+        margin-bottom: 0;
+      }
+    </style>
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    <div class="container">
+      <header class="mb-4">
+        <h1 class="h3">摘要存档服务</h1>
+        <p class="text-muted mb-0">保存用户输入、相关资源以及生成的 HTML 摘要，供后续浏览和集成。</p>
+      </header>
+      {% block content %}{% endblock %}
+    </div>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+      crossorigin="anonymous"
+    ></script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>
+

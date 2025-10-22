@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% block title %}摘要列表{% endblock %}
+
+{% block content %}
+  {% if records %}
+    <table class="table table-striped summary-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>创建时间 (UTC)</th>
+          <th>用户输入</th>
+          <th>相关网址</th>
+          <th>文件名</th>
+          <th class="text-end">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in records %}
+          <tr>
+            <td>{{ record.id }}</td>
+            <td>{{ record.created_at }}</td>
+            <td>
+              {% if record.user_input %}
+                <div class="text-truncate" style="max-width: 220px;">{{ record.user_input }}</div>
+              {% else %}
+                <span class="text-muted">无</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if record.urls %}
+                <ul class="urls-list list-unstyled mb-0">
+                  {% for url in record.urls %}
+                    <li><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <span class="text-muted">无</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if record.filenames %}
+                <ul class="files-list list-unstyled mb-0">
+                  {% for filename in record.filenames %}
+                    <li>{{ filename }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <span class="text-muted">无</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="{{ record.detail_url }}">详情</a>
+              <a class="btn btn-sm btn-outline-secondary" href="{{ record.render_url }}" target="_blank" rel="noopener">打开摘要</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="alert alert-info">目前没有保存的摘要。</div>
+  {% endif %}
+{% endblock %}
+

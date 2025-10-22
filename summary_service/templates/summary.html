@@ -1,0 +1,81 @@
+{% extends "layout.html" %}
+
+{% block title %}摘要详情 #{{ record.id }}{% endblock %}
+
+{% block content %}
+  <div class="mb-3">
+    <a href="{{ url_for('index') }}" class="btn btn-link">&larr; 返回列表</a>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">
+      <strong>基础信息</strong>
+    </div>
+    <div class="card-body">
+      <dl class="row">
+        <dt class="col-sm-3">ID</dt>
+        <dd class="col-sm-9">{{ record.id }}</dd>
+
+        <dt class="col-sm-3">创建时间 (UTC)</dt>
+        <dd class="col-sm-9">{{ record.created_at }}</dd>
+
+        <dt class="col-sm-3">用户输入</dt>
+        <dd class="col-sm-9">
+          {% if record.user_input %}
+            <pre class="mb-0">{{ record.user_input }}</pre>
+          {% else %}
+            <span class="text-muted">无</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-sm-3">相关网址</dt>
+        <dd class="col-sm-9">
+          {% if record.urls %}
+            <ul>
+              {% for url in record.urls %}
+                <li><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <span class="text-muted">无</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-sm-3">文件名</dt>
+        <dd class="col-sm-9">
+          {% if record.filenames %}
+            <ul>
+              {% for filename in record.filenames %}
+                <li>{{ filename }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <span class="text-muted">无</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-sm-3">HTML 文件路径</dt>
+        <dd class="col-sm-9">
+          <code>{{ record.html_file_path }}</code>
+        </dd>
+      </dl>
+      <div class="d-flex gap-2">
+        <a class="btn btn-primary" href="{{ record.render_url }}" target="_blank" rel="noopener">在新窗口打开摘要</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <strong>摘要预览</strong>
+    </div>
+    <div class="card-body">
+      <iframe
+        src="{{ record.render_url }}"
+        title="Summary Preview"
+        style="width: 100%; min-height: 600px; border: 1px solid #ced4da;"
+      ></iframe>
+    </div>
+  </div>
+{% endblock %}
+
