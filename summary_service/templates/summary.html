@@ -2,80 +2,83 @@
 
 {% block title %}摘要详情 #{{ record.id }}{% endblock %}
 
+{% block header_actions %}
+  <a class="btn btn-outline-primary btn-lg" href="{{ url_for('index') }}">返回列表</a>
+{% endblock %}
+
 {% block content %}
-  <div class="mb-3">
-    <a href="{{ url_for('index') }}" class="btn btn-link">&larr; 返回列表</a>
-  </div>
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="app-card shadow-sm h-100">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
+          <div>
+            <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis px-3 py-2">
+              #{{ record.id }}
+            </span>
+            <div class="text-muted small mt-2">
+              创建时间：{{ record.created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}
+            </div>
+          </div>
+          <a class="btn btn-primary" href="{{ record.render_url }}" target="_blank" rel="noopener">在新窗口打开</a>
+        </div>
 
-  <div class="card mb-4">
-    <div class="card-header">
-      <strong>基础信息</strong>
-    </div>
-    <div class="card-body">
-      <dl class="row">
-        <dt class="col-sm-3">ID</dt>
-        <dd class="col-sm-9">{{ record.id }}</dd>
-
-        <dt class="col-sm-3">创建时间 (UTC)</dt>
-        <dd class="col-sm-9">{{ record.created_at }}</dd>
-
-        <dt class="col-sm-3">用户输入</dt>
-        <dd class="col-sm-9">
+        <div class="mb-4">
+          <div class="info-title">用户输入</div>
           {% if record.user_input %}
-            <pre class="mb-0">{{ record.user_input }}</pre>
+            <pre class="snippet-block">{{ record.user_input }}</pre>
           {% else %}
-            <span class="text-muted">无</span>
+            <div class="info-panel text-muted">无</div>
           {% endif %}
-        </dd>
+        </div>
 
-        <dt class="col-sm-3">相关网址</dt>
-        <dd class="col-sm-9">
+        <div class="mb-4">
+          <div class="info-title">相关网址</div>
           {% if record.urls %}
-            <ul>
+            <div class="info-panel d-flex flex-wrap gap-2">
               {% for url in record.urls %}
-                <li><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></li>
+                <a class="chip chip-link" href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a>
               {% endfor %}
-            </ul>
+            </div>
           {% else %}
-            <span class="text-muted">无</span>
+            <div class="info-panel text-muted">无</div>
           {% endif %}
-        </dd>
+        </div>
 
-        <dt class="col-sm-3">文件名</dt>
-        <dd class="col-sm-9">
+        <div class="mb-4">
+          <div class="info-title">附件</div>
           {% if record.filenames %}
-            <ul>
+            <div class="info-panel d-flex flex-wrap gap-2">
               {% for filename in record.filenames %}
-                <li>{{ filename }}</li>
+                <span class="chip chip-neutral">{{ filename }}</span>
               {% endfor %}
-            </ul>
+            </div>
           {% else %}
-            <span class="text-muted">无</span>
+            <div class="info-panel text-muted">无</div>
           {% endif %}
-        </dd>
+        </div>
 
-        <dt class="col-sm-3">HTML 文件路径</dt>
-        <dd class="col-sm-9">
-          <code>{{ record.html_file_path }}</code>
-        </dd>
-      </dl>
-      <div class="d-flex gap-2">
-        <a class="btn btn-primary" href="{{ record.render_url }}" target="_blank" rel="noopener">在新窗口打开摘要</a>
+        <div>
+          <div class="info-title">HTML 文件路径</div>
+          <div class="info-panel text-break">
+            <code>{{ record.html_file_path }}</code>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="app-card shadow-sm h-100">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <h2 class="h5 mb-0">摘要预览</h2>
+          <span class="text-muted small">内嵌预览帮助快速浏览内容</span>
+        </div>
+        <div class="preview-frame">
+          <iframe
+            src="{{ record.render_url }}"
+            title="Summary Preview"
+            loading="lazy"
+          ></iframe>
+        </div>
       </div>
     </div>
   </div>
-
-  <div class="card">
-    <div class="card-header">
-      <strong>摘要预览</strong>
-    </div>
-    <div class="card-body">
-      <iframe
-        src="{{ record.render_url }}"
-        title="Summary Preview"
-        style="width: 100%; min-height: 600px; border: 1px solid #ced4da;"
-      ></iframe>
-    </div>
-  </div>
 {% endblock %}
-

@@ -2,63 +2,103 @@
 
 {% block title %}摘要列表{% endblock %}
 
-{% block content %}
+{% block header_actions %}
   {% if records %}
-    <table class="table table-striped summary-table">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>创建时间 (UTC)</th>
-          <th>用户输入</th>
-          <th>相关网址</th>
-          <th>文件名</th>
-          <th class="text-end">操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for record in records %}
-          <tr>
-            <td>{{ record.id }}</td>
-            <td>{{ record.created_at }}</td>
-            <td>
-              {% if record.user_input %}
-                <div class="text-truncate" style="max-width: 220px;">{{ record.user_input }}</div>
-              {% else %}
-                <span class="text-muted">无</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if record.urls %}
-                <ul class="urls-list list-unstyled mb-0">
-                  {% for url in record.urls %}
-                    <li><a href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a></li>
-                  {% endfor %}
-                </ul>
-              {% else %}
-                <span class="text-muted">无</span>
-              {% endif %}
-            </td>
-            <td>
-              {% if record.filenames %}
-                <ul class="files-list list-unstyled mb-0">
-                  {% for filename in record.filenames %}
-                    <li>{{ filename }}</li>
-                  {% endfor %}
-                </ul>
-              {% else %}
-                <span class="text-muted">无</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              <a class="btn btn-sm btn-outline-primary" href="{{ record.detail_url }}">详情</a>
-              <a class="btn btn-sm btn-outline-secondary" href="{{ record.render_url }}" target="_blank" rel="noopener">打开摘要</a>
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="text-end">
+      <div class="badge rounded-pill bg-primary-subtle text-primary-emphasis fs-6 px-3 py-2">
+        {{ records|length }}
+      </div>
+      <div class="small text-muted mt-1">已保存摘要</div>
+    </div>
   {% else %}
-    <div class="alert alert-info">目前没有保存的摘要。</div>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('index') }}">刷新列表</a>
   {% endif %}
 {% endblock %}
 
+{% block content %}
+  {% if records %}
+    <div class="app-card app-table shadow-sm">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+        <div>
+          <h2 class="h4 mb-1">摘要列表</h2>
+          <p class="text-muted small mb-0">
+            最新更新：{{ records[0].created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}
+          </p>
+        </div>
+        <div class="text-muted small">
+          共 <span class="fw-semibold">{{ records|length }}</span> 条归档
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="width: 36%;">摘要</th>
+              <th>相关网址</th>
+              <th style="width: 20%;">附件</th>
+              <th class="text-end" style="width: 12%;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in records %}
+              <tr>
+                <td>
+                  <div class="d-flex flex-column gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis px-3 py-2">
+                        #{{ record.id }}
+                      </span>
+                      <span class="text-muted small">
+                        {{ record.created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}
+                      </span>
+                    </div>
+                    <div class="text-snippet text-muted">
+                      {{ record.user_input or '（无用户输入）' }}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {% if record.urls %}
+                    <div class="d-flex flex-wrap gap-2">
+                      {% for url in record.urls %}
+                        <a class="chip chip-link" href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted small">无</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if record.filenames %}
+                    <div class="d-flex flex-wrap gap-2">
+                      {% for filename in record.filenames %}
+                        <span class="chip chip-neutral">{{ filename }}</span>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted small">无</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="btn-group">
+                    <a class="btn btn-sm btn-primary" href="{{ record.detail_url }}">详情</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ record.render_url }}" target="_blank" rel="noopener">打开摘要</a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="app-card empty-state shadow-sm">
+      <div class="empty-state-icon">📁</div>
+      <h2 class="h4 mb-2">暂时没有摘要</h2>
+      <p class="text-muted mb-4">
+        可在 HtmlSummary 页面生成摘要后点击“保存摘要”，这里会自动出现归档记录。
+      </p>
+      <a class="btn btn-primary" href="{{ url_for('index') }}">刷新列表</a>
+    </div>
+  {% endif %}
+{% endblock %}
