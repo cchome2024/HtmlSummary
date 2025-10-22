@@ -209,11 +209,34 @@ def list_summaries():
 def get_summary(summary_id: int):
     record = fetch_record(summary_id)
     if record is None:
-        return jsonify({"error": "Summary not found"}), 404
+        return _cors_headers(jsonify({"error": "Summary not found"})), 404
     record["detail_url"] = url_for("summary_detail", summary_id=summary_id, _external=True)
     record["render_url"] = url_for("render_summary_html", summary_id=summary_id, _external=True)
     record["html_file"] = str(HTML_DIR / record["html_filename"])
-    return jsonify(record)
+    return _cors_headers(jsonify(record))
+
+
+@app.route("/api/summaries/<int:summary_id>", methods=["DELETE", "OPTIONS"])
+def delete_summary(summary_id: int):
+    if request.method == "OPTIONS":
+        return _cors_preflight()
+
+    record = fetch_record(summary_id)
+    if record is None:
+        return _cors_headers(jsonify({"error": "Summary not found"})), 404
+
+    file_path = HTML_DIR / record["html_filename"]
+    if file_path.exists():
+        try:
+            file_path.unlink()
+        except OSError:
+            pass
+
+    with get_db_connection() as conn:
+        conn.execute("DELETE FROM summaries WHERE id = ?", (summary_id,))
+        conn.commit()
+
+    return _cors_headers(jsonify({"status": "deleted", "id": summary_id}))
 
 
 def fetch_record(summary_id: int) -> dict[str, Any] | None:

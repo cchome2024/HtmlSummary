@@ -6,9 +6,9 @@
   {% if records %}
     <div class="text-end">
       <div class="badge rounded-pill bg-primary-subtle text-primary-emphasis fs-6 px-3 py-2">
-        {{ records|length }}
+        共 {{ records|length }} 条
       </div>
-      <div class="small text-muted mt-1">已保存摘要</div>
+      <div class="small text-muted mt-1">最新更新于 {{ records[0].created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}</div>
     </div>
   {% else %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('index') }}">刷新列表</a>
@@ -29,7 +29,7 @@
           共 <span class="fw-semibold">{{ records|length }}</span> 条归档
         </div>
       </div>
-      <div class="table-responsive">
+      <div class="table-responsive rounded-4 border border-light-subtle">
         <table class="table table-hover align-middle mb-0">
           <thead>
             <tr>
@@ -80,9 +80,12 @@
                   {% endif %}
                 </td>
                 <td class="text-end">
-                  <div class="btn-group">
+                  <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
                     <a class="btn btn-sm btn-primary" href="{{ record.detail_url }}">详情</a>
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ record.render_url }}" target="_blank" rel="noopener">打开摘要</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ record.render_url }}" target="_blank" rel="noopener">打开</a>
+                    <button class="btn btn-sm btn-ghost-danger" type="button" onclick="handleDelete(this, {{ record.id }})">
+                      <span class="action-icon">✕</span>删除
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -101,4 +104,42 @@
       <a class="btn btn-primary" href="{{ url_for('index') }}">刷新列表</a>
     </div>
   {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    function handleDelete(button, recordId){
+      if (!Number.isInteger(recordId)){
+        recordId = parseInt(recordId, 10);
+      }
+      if (!recordId || Number.isNaN(recordId)){
+        return;
+      }
+      const confirmed = window.confirm(`确定删除摘要 #${recordId}？该操作不可恢复。`);
+      if (!confirmed){
+        return;
+      }
+      const originalContent = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm align-middle me-2" role="status" aria-hidden="true"></span>删除中…';
+      fetch(`/api/summaries/${recordId}`, { method: 'DELETE' })
+        .then((res) => {
+          if (!res.ok){
+            return res.json().catch(() => ({})).then((payload) => {
+              const msg = payload && (payload.error || payload.detail) ? payload.error || payload.detail : `删除失败（${res.status}）`;
+              throw new Error(msg);
+            });
+          }
+          return res.json();
+        })
+        .then(() => {
+          window.location.reload();
+        })
+        .catch((err) => {
+          window.alert(err.message || '删除失败，请稍后重试');
+          button.disabled = false;
+          button.innerHTML = originalContent;
+        });
+    }
+  </script>
 {% endblock %}
