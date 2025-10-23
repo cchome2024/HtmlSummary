@@ -19,7 +19,7 @@ from .summarizer import (
     render_table_summary,
     render_text_summary,
 )
-from .llm_client import DEFAULT_PROMPTS, generate_html_with_llm
+from .llm_client import DEFAULT_PROMPTS, call_mcp_save_via_llm, generate_html_with_llm
 
 
 DEBUG_ERRORS = bool(os.getenv("DEBUG_ERRORS", "").strip())
@@ -36,6 +36,7 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = ensure_public_dir(BASE_DIR)
 SUMMARY_SERVICE_URL = (os.getenv("SUMMARY_SERVICE_BASE_URL") or "http://127.0.0.1:8050").rstrip("/")
+SUMMARY_MCP_URL = (os.getenv("SUMMARY_MCP_BASE_URL") or "http://127.0.0.1:8150").rstrip("/")
 
 # Logger
 logger = logging.getLogger("htmlsummary")
@@ -115,9 +116,13 @@ def index():
     const SUMMARY_SERVICE_BASE_RAW = __SUMMARY_SERVICE_URL__;
     const SUMMARY_SERVICE_BASE = typeof SUMMARY_SERVICE_BASE_RAW === 'string' ? SUMMARY_SERVICE_BASE_RAW.replace(/\\/+$/, '') : '';
     const summaryServiceAvailable = SUMMARY_SERVICE_BASE.length > 0;
+    const SUMMARY_MCP_BASE_RAW = __SUMMARY_MCP_URL__;
+    const SUMMARY_MCP_BASE = typeof SUMMARY_MCP_BASE_RAW === 'string' ? SUMMARY_MCP_BASE_RAW.replace(/\\/+$/, '') : '';
+    const summaryMcpAvailable = SUMMARY_MCP_BASE.length > 0;
     let lastSummaryPayload = null;
     let summaryFormSnapshot = null;
     let isSavingSummary = false;
+    let isSavingSummaryMcp = false;
     const promptCache = Object.assign({}, DEFAULT_PROMPTS);
     let promptDirty = false;
     function applyTheme(t){document.documentElement.setAttribute('data-theme',t);const s=document.getElementById('themeSwitch');if(s){s.classList.toggle('active',t==='dark');}}
@@ -194,40 +199,72 @@ def index():
       const filenames = fileList.map((file)=>file.name);
       return { text, title, urls, filenames };
     }
-    function getSaveButton(){
-      return document.getElementById('saveSummary');
+
+    
+        function getSaveButtons(){
+      return [
+        document.getElementById('saveSummary'),
+        document.getElementById('saveSummaryMcp')
+      ].filter(Boolean);
     }
-    function updateSaveButton(canSave){
-      const btn = getSaveButton();
-      if (!btn){ return; }
-      const enable = summaryServiceAvailable && canSave && !isSavingSummary;
-      btn.disabled = !enable;
-      if (!summaryServiceAvailable){
-        btn.title = '未配置摘要存档服务';
-      } else if (!canSave){
-        btn.title = '请先生成摘要';
-      } else {
-        btn.title = '';
+    function ensureButtonDefaults(){
+      getSaveButtons().forEach((btn)=>{
+        if (!btn.dataset.defaultText){
+          btn.dataset.defaultText = btn.innerHTML;
+        }
+      });
+    }
+    function updateSaveButtons(canSave){
+      ensureButtonDefaults();
+      const standardBtn = document.getElementById('saveSummary');
+      if (standardBtn && !isSavingSummary){
+        const enable = summaryServiceAvailable && canSave;
+        standardBtn.disabled = !enable;
+        if (!summaryServiceAvailable){
+          standardBtn.title = '未配置摘要存档服务';
+        } else if (!canSave){
+          standardBtn.title = '请先生成摘要';
+        } else {
+          standardBtn.title = '';
+        }
+        if (!enable){
+          standardBtn.innerHTML = standardBtn.dataset.defaultText;
+        }
       }
-      if (!enable && !isSavingSummary){
-        btn.textContent = '保存摘要';
+      const mcpBtn = document.getElementById('saveSummaryMcp');
+      if (mcpBtn && !isSavingSummaryMcp){
+        const enable = summaryMcpAvailable && canSave;
+        mcpBtn.disabled = !enable;
+        if (!summaryMcpAvailable){
+          mcpBtn.title = '未配置 MCP 摘要服务';
+        } else if (!canSave){
+          mcpBtn.title = '请先生成摘要';
+        } else {
+          mcpBtn.title = '';
+        }
+        if (!enable){
+          mcpBtn.innerHTML = mcpBtn.dataset.defaultText;
+        }
       }
     }
-    function setSaveBusy(busy){
-      const btn = getSaveButton();
+    function setSaveBusy(mode, busy){
+      const btnId = mode === 'mcp' ? 'saveSummaryMcp' : 'saveSummary';
+      const btn = document.getElementById(btnId);
       if (!btn){ return; }
+      ensureButtonDefaults();
       if (busy){
+        const label = mode === 'mcp' ? '通过 MCP 保存中…' : '保存中...';
         btn.disabled = true;
-        btn.textContent = '保存中...';
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm align-middle me-2" role="status" aria-hidden="true"></span>${label}`;
       } else {
-        btn.textContent = '保存摘要';
-        updateSaveButton(Boolean(lastSummaryPayload && summaryFormSnapshot));
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.defaultText;
       }
     }
     function resetSaveState(){
       lastSummaryPayload = null;
       summaryFormSnapshot = null;
-      updateSaveButton(false);
+      updateSaveButtons(false);
     }
     async function saveSummary(){
       if (!summaryServiceAvailable){
@@ -250,7 +287,7 @@ def index():
         return;
       }
       isSavingSummary = true;
-      setSaveBusy(true);
+      setSaveBusy('standard', true);
       try{
         const viewUrl = lastSummaryPayload.view_url_absolute || (location.origin + lastSummaryPayload.view_url);
         const htmlRes = await fetch(viewUrl);
@@ -279,7 +316,8 @@ def index():
         }
         const status = document.getElementById('status');
         if (status){
-          status.textContent = data && data.detail_url ? `摘要已保存：${data.detail_url}` : '摘要已保存';
+          const message = data && data.detail_url ? `摘要已保存：${data.detail_url}` : '摘要已保存';
+          status.textContent = message;
           status.className = 'good';
         }
       }catch(err){
@@ -290,10 +328,79 @@ def index():
         }
       }finally{
         isSavingSummary = false;
-        setSaveBusy(false);
+        setSaveBusy('standard', false);
+        updateSaveButtons(Boolean(lastSummaryPayload && summaryFormSnapshot));
       }
     }
-    async function submitForm(ev){
+
+async function saveSummaryViaMcp(){
+  if (!summaryMcpAvailable){
+    const status = document.getElementById('status');
+    if (status){
+      status.textContent = '未配置 MCP 摘要服务';
+      status.className = 'warn';
+    }
+    return;
+  }
+  if (!lastSummaryPayload || !summaryFormSnapshot){
+    const status = document.getElementById('status');
+    if (status){
+      status.textContent = '请先生成摘要';
+      status.className = 'warn';
+    }
+    return;
+  }
+  if (isSavingSummaryMcp){
+    return;
+  }
+  isSavingSummaryMcp = true;
+  setSaveBusy('mcp', true);
+  try{
+    const viewUrl = lastSummaryPayload.view_url_absolute || (location.origin + lastSummaryPayload.view_url);
+    const htmlRes = await fetch(viewUrl);
+    if (!htmlRes.ok){
+      throw new Error('无法获取摘要 HTML');
+    }
+    const htmlContent = await htmlRes.text();
+    const payload = {
+      user_input: summaryFormSnapshot.text,
+      urls: summaryFormSnapshot.urls,
+      filenames: summaryFormSnapshot.filenames,
+      html_content: htmlContent,
+      title: summaryFormSnapshot.title,
+      source_view_url: viewUrl,
+      result_id: lastSummaryPayload.result_id || ''
+    };
+    const response = await fetch('/api/save_via_mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(()=>null);
+    if (!response.ok){
+      const message = data && (data.detail || data.error) ? (data.detail || data.error) : `保存失败（${response.status}）`;
+      throw new Error(message);
+    }
+    const result = data && data.result ? data.result : {};
+    const status = document.getElementById('status');
+    if (status){
+      const detail = result.detail_url || result.render_url || '';
+      status.textContent = detail ? `摘要已通过 MCP 保存：${detail}` : '摘要已通过 MCP 保存';
+      status.className = 'good';
+    }
+  }catch(err){
+    const status = document.getElementById('status');
+    if (status){
+      status.textContent = (err && err.message) ? err.message : '通过 MCP 保存失败';
+      status.className = 'bad';
+    }
+  }finally{
+    isSavingSummaryMcp = false;
+    setSaveBusy('mcp', false);
+    updateSaveButtons(Boolean(lastSummaryPayload && summaryFormSnapshot));
+  }
+}
+async function submitForm(ev){
       ev.preventDefault();
       resetSaveState();
       const form = document.getElementById('f');
@@ -333,8 +440,28 @@ def index():
     }
     function setBusy(b){ document.getElementById('btn').disabled = b; document.getElementById('status').textContent = b ? '正在生成与发布…' : ''; }
     function showError(msg, trace){ const el = document.getElementById('status'); el.textContent = msg; el.className='bad'; const pre = document.getElementById('trace'); if (pre){ if (trace){ pre.style.display='block'; pre.textContent = String(trace);} else { pre.style.display='none'; pre.textContent=''; } } const resBox = document.getElementById('result'); if (resBox){ resBox.style.display='block'; } const viewA = document.getElementById('view'); const downA = document.getElementById('download'); if (viewA){ viewA.href = '#'; viewA.textContent = '无可用链接（生成失败）'; } if (downA){ downA.href = '#'; } const frame = document.getElementById('frame'); if (frame){ const safe = (s)=> String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); const html = `<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,Segoe UI,Arial;padding:16px;color:#111}.bad{color:#b91c1c}pre{white-space:pre-wrap;background:#f8fafc;border:1px solid #e5e7eb;padding:12px;border-radius:8px}</style><title>Error</title></head><body><h2 class="bad">生成失败</h2><p>${safe(msg)}</p>${trace?`<pre>${safe(trace)}</pre>`:''}</body></html>`; frame.srcdoc = html; } resetSaveState(); }
-    function showResult(data){ const s = document.getElementById('status'); if (data && data.warning){ s.textContent='生成成功（已回退）'; s.className='warn'; } else { s.textContent='生成成功'; s.className='good'; } const errBox = document.getElementById('errorbox'); if (errBox){ errBox.style.display='none'; } const v = location.origin + data.view_url; document.getElementById('view').href = v; document.getElementById('download').href = location.origin + data.download_url; document.getElementById('view').textContent = v; document.getElementById('frame').src = data.view_url; document.getElementById('result').style.display='block'; lastSummaryPayload = Object.assign({}, data, { view_url_absolute: v }); summaryFormSnapshot = captureFormSnapshot(); updateSaveButton(true); }
-    function copyLink(){ const link = document.getElementById('view').href; navigator.clipboard.writeText(link).then(()=>{ const s = document.getElementById('status'); s.textContent='链接已复制'; s.className='good'; }).catch(()=>{}); }
+        function showResult(data){
+      const s = document.getElementById('status');
+      if (data && data.warning){
+        s.textContent = '生成成功（已回退）';
+        s.className = 'warn';
+      } else {
+        s.textContent = '生成成功';
+        s.className = 'good';
+      }
+      const errBox = document.getElementById('errorbox');
+      if (errBox){ errBox.style.display = 'none'; }
+      const v = location.origin + data.view_url;
+      document.getElementById('view').href = v;
+      document.getElementById('download').href = location.origin + data.download_url;
+      document.getElementById('view').textContent = v;
+      document.getElementById('frame').src = data.view_url;
+      document.getElementById('result').style.display = 'block';
+      lastSummaryPayload = Object.assign({}, data, { view_url_absolute: v });
+      summaryFormSnapshot = captureFormSnapshot();
+      updateSaveButtons(true);
+    }
+function copyLink(){ const link = document.getElementById('view').href; navigator.clipboard.writeText(link).then(()=>{ const s = document.getElementById('status'); s.textContent='链接已复制'; s.className='good'; }).catch(()=>{}); }
   </script>
 </head>
 <body onload="initTheme();initForm()">
@@ -404,6 +531,7 @@ https://mp.weixin.qq.com/xxx"></textarea>
             <a id="view" href="#" target="_blank">打开公共链接</a>
             <a id="download" href="#">下载 HTML</a>
             <button id="saveSummary" class="btn" onclick="saveSummary()" type="button" disabled>保存摘要</button>
+            <button id="saveSummaryMcp" class="btn" onclick="saveSummaryViaMcp()" type="button" disabled>通过 MCP 保存</button>
             <button class="btn secondary" onclick="copyLink()" type="button">复制链接</button>
           </div>
           <div class="preview"> 
@@ -418,8 +546,10 @@ https://mp.weixin.qq.com/xxx"></textarea>
 </html>
     """
     summary_service_url_json = json.dumps(SUMMARY_SERVICE_URL, ensure_ascii=False)
+    summary_mcp_url_json = json.dumps(SUMMARY_MCP_URL, ensure_ascii=False)
     html = html.replace("__PROMPTS_PLACEHOLDER__", prompts_json)
     html = html.replace("__SUMMARY_SERVICE_URL__", summary_service_url_json)
+    html = html.replace("__SUMMARY_MCP_URL__", summary_mcp_url_json)
     return HTMLResponse(content=html)
 
 
@@ -597,6 +727,51 @@ async def generate_api(payload: dict):
         "view_url": f"/public/{result_id}",
         "download_url": f"/public/{result_id}?download=1",
     })
+
+
+@app.post("/api/save_via_mcp")
+async def save_via_mcp(payload: dict):
+    html_content = (payload or {}).get("html_content")
+    if not html_content or not isinstance(html_content, str):
+        raise HTTPException(status_code=400, detail="html_content is required")
+
+    def _normalize_list(key: str) -> list[str]:
+        value = (payload or {}).get(key)
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise HTTPException(status_code=400, detail=f"{key} must be a list")
+        normalized: list[str] = []
+        for item in value:
+            if item is None:
+                continue
+            normalized.append(str(item))
+        return normalized
+
+    user_input = (payload or {}).get("user_input") or ""
+    if not isinstance(user_input, str):
+        user_input = str(user_input)
+    urls = _normalize_list("urls")
+    filenames = _normalize_list("filenames")
+
+    arguments = {
+        "user_input": user_input,
+        "urls": urls,
+        "filenames": filenames,
+        "html_content": html_content,
+    }
+    for optional_key in ("title", "source_view_url", "result_id"):
+        if optional_key in (payload or {}):
+            arguments[optional_key] = (payload or {}).get(optional_key)
+
+    try:
+        result = call_mcp_save_via_llm(arguments=arguments, mcp_base_url=SUMMARY_MCP_URL)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:  # pylint: disable=broad-except
+        raise HTTPException(status_code=500, detail=f"MCP 保存失败: {exc}")
+
+    return JSONResponse({"result": result})
 
 
 @app.get("/public/{result_id}")

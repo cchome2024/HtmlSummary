@@ -1,0 +1,145 @@
+{% extends "layout.html" %}
+
+{% block title %}摘要列表{% endblock %}
+
+{% block header_actions %}
+  {% if records %}
+    <div class="text-end">
+      <div class="badge rounded-pill bg-primary-subtle text-primary-emphasis fs-6 px-3 py-2">
+        共 {{ records|length }} 条
+      </div>
+      <div class="small text-muted mt-1">最新更新于 {{ records[0].created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}</div>
+    </div>
+  {% else %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('index') }}">刷新列表</a>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  {% if records %}
+    <div class="app-card app-table shadow-sm">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+        <div>
+          <h2 class="h4 mb-1">摘要列表</h2>
+          <p class="text-muted small mb-0">
+            最新更新：{{ records[0].created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}
+          </p>
+        </div>
+        <div class="text-muted small">
+          共 <span class="fw-semibold">{{ records|length }}</span> 条归档
+        </div>
+      </div>
+      <div class="table-responsive rounded-4 border border-light-subtle">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th style="width: 36%;">摘要</th>
+              <th>相关网址</th>
+              <th style="width: 20%;">附件</th>
+              <th class="text-end" style="width: 12%;">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in records %}
+              <tr>
+                <td>
+                  <div class="d-flex flex-column gap-2">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                      <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis px-3 py-2">
+                        #{{ record.id }}
+                      </span>
+                      <span class="text-muted small">
+                        {{ record.created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}
+                      </span>
+                    </div>
+                    <div class="text-snippet text-muted">
+                      {{ record.user_input or '（无用户输入）' }}
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  {% if record.urls %}
+                    <div class="d-flex flex-wrap gap-2">
+                      {% for url in record.urls %}
+                        <a class="chip chip-link" href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted small">无</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if record.filenames %}
+                    <div class="d-flex flex-wrap gap-2">
+                      {% for filename in record.filenames %}
+                        <span class="chip chip-neutral">{{ filename }}</span>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted small">无</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
+                    <a class="btn btn-sm btn-primary" href="{{ record.detail_url }}">详情</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ record.render_url }}" target="_blank" rel="noopener">打开</a>
+                    <button class="btn btn-sm btn-ghost-danger" type="button" onclick="handleDelete(this, {{ record.id }})">
+                      <span class="action-icon">✕</span>删除
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% else %}
+    <div class="app-card empty-state shadow-sm">
+      <div class="empty-state-icon">📁</div>
+      <h2 class="h4 mb-2">暂时没有摘要</h2>
+      <p class="text-muted mb-4">
+        可在 HtmlSummary 页面生成摘要后点击“保存摘要”，这里会自动出现归档记录。
+      </p>
+      <a class="btn btn-primary" href="{{ url_for('index') }}">刷新列表</a>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    function handleDelete(button, recordId){
+      if (!Number.isInteger(recordId)){
+        recordId = parseInt(recordId, 10);
+      }
+      if (!recordId || Number.isNaN(recordId)){
+        return;
+      }
+      const confirmed = window.confirm(`确定删除摘要 #${recordId}？该操作不可恢复。`);
+      if (!confirmed){
+        return;
+      }
+      const originalContent = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm align-middle me-2" role="status" aria-hidden="true"></span>删除中…';
+      fetch(`/api/summaries/${recordId}`, { method: 'DELETE' })
+        .then((res) => {
+          if (!res.ok){
+            return res.json().catch(() => ({})).then((payload) => {
+              const msg = payload && (payload.error || payload.detail) ? payload.error || payload.detail : `删除失败（${res.status}）`;
+              throw new Error(msg);
+            });
+          }
+          return res.json();
+        })
+        .then(() => {
+          window.location.reload();
+        })
+        .catch((err) => {
+          window.alert(err.message || '删除失败，请稍后重试');
+          button.disabled = false;
+          button.innerHTML = originalContent;
+        });
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+
+{% block title %}摘要详情 #{{ record.id }}{% endblock %}
+
+{% block header_actions %}
+  <a class="btn btn-outline-primary btn-lg" href="{{ url_for('index') }}">返回列表</a>
+{% endblock %}
+
+{% block content %}
+  <div class="row g-4">
+    <div class="col-lg-5">
+      <div class="app-card shadow-sm h-100">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-4">
+          <div>
+            <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis px-3 py-2">
+              #{{ record.id }}
+            </span>
+            <div class="text-muted small mt-2">
+              创建时间：{{ record.created_at|replace('T', ' ')|replace('+00:00', ' UTC') }}
+            </div>
+          </div>
+          <a class="btn btn-primary" href="{{ record.render_url }}" target="_blank" rel="noopener">在新窗口打开</a>
+        </div>
+
+        <div class="mb-4">
+          <div class="info-title">用户输入</div>
+          {% if record.user_input %}
+            <pre class="snippet-block">{{ record.user_input }}</pre>
+          {% else %}
+            <div class="info-panel text-muted">无</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-4">
+          <div class="info-title">相关网址</div>
+          {% if record.urls %}
+            <div class="info-panel d-flex flex-wrap gap-2">
+              {% for url in record.urls %}
+                <a class="chip chip-link" href="{{ url }}" target="_blank" rel="noopener">{{ url }}</a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="info-panel text-muted">无相关网址</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-4">
+          <div class="info-title">附件</div>
+          {% if record.filenames %}
+            <div class="info-panel d-flex flex-wrap gap-2">
+              {% for filename in record.filenames %}
+                <span class="chip chip-neutral">{{ filename }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="info-panel text-muted">无附件</div>
+          {% endif %}
+        </div>
+
+        <div>
+          <div class="info-title">HTML 文件路径</div>
+          <div class="info-panel text-break">
+            <code>{{ record.html_file_path }}</code>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-7">
+      <div class="app-card shadow-sm h-100">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <h2 class="h5 mb-0">摘要预览</h2>
+          <span class="text-muted small">内嵌预览帮助快速浏览内容</span>
+        </div>
+        <div class="preview-frame">
+          <iframe
+            src="{{ record.render_url }}"
+            title="Summary Preview"
+            loading="lazy"
+          ></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

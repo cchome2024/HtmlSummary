@@ -64,10 +64,12 @@ Open `http://localhost:8000/public/<uuid>` to view the rendered HTML.
 - After generation, previews the published HTML and shows the public link and a download button.
 
 ### Summary archive service (optional)
-1. Launch the companion Flask service: `python summary_service/app.py` (defaults to `http://127.0.0.1:8050`).
-2. Configure HtmlSummary to talk to it by setting `SUMMARY_SERVICE_BASE_URL` in `.env` (see `.env.example`).
-3. Generate a summary as usual, then click the new “保存摘要�?button in the preview panel to persist the HTML, original input, URLs, and uploaded file names into the archive.
-4. On success, the status area will show the detail link returned by the Flask service; failures will surface inline error messages.
+1. 启动原有 Flask 存档服务：`python summary_service/app.py`（默认监听 `http://127.0.0.1:8050`）。
+2. 启动新的 MCP 存档服务：`python summary_mcp/app.py`（默认监听 `http://127.0.0.1:8150`）。
+3. 在 `.env` 中分别设置 `SUMMARY_SERVICE_BASE_URL` 与 `SUMMARY_MCP_BASE_URL`，并重启 HtmlSummary。
+4. 生成摘要后，预览面板会同时显示两个按钮：`保存摘要`（直接请求 Flask 服务）与 `通过 MCP 保存`（通过大模型 function call 触发 MCP 工具）。
+5. 成功时状态栏会展示服务返回的详情/渲染链接；失败会提示错误但不会影响另一种保存方式。
+6. 两种保存方式共享同一个 SQLite 数据库与 `stored_html/` 文件夹，列表/详情页面可互通查看。
 
 ### LLM-backed HTML generation
 
@@ -77,9 +79,9 @@ Request body:
 
 ```json
 {
-  "input_content": "用户上传的文件内容或手动输入的文�?,
+  "input_content": "用户上传的文件内容或手动输入的文?,
   "format": "text|card|flow|table",
-  "title": "摘要的标�?
+  "title": "摘要的标?
 }
 ```
 
@@ -148,7 +150,7 @@ Setup with DeepSeek:
 
 ```bash
 curl -X POST http://localhost:8000/summarize \
-  -F "text=这是一个用于测试的示例文本。它包含多句话，用于演示摘要功能。服务会返回多种摘要形式并生成HTML文件�? \
+  -F "text=这是一个用于测试的示例文本。它包含多句话，用于演示摘要功能。服务会返回多种摘要形式并生成HTML文件? \
   -F "formats=text,cards,flowchart,table" \
   -F "title=示例摘要"
 ```
@@ -167,6 +169,6 @@ Summarize from URLs and text:
 ```bash
 curl -X POST http://localhost:8000/summarize \
   -F "url=https://example.com/article, https://example.com/notes" \
-  -F "text=补充说明：请按要点输出�? \
+  -F "text=补充说明：请按要点输出? \
   -F formats=text,table
 ```

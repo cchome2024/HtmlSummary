@@ -1,6 +1,8 @@
+import json
 import os
 import re
-from typing import Literal
+import time
+from typing import Any, Literal
 
 # Load .env if present
 try:
@@ -174,7 +176,130 @@ def _normalize_llm_html(s: str, title: str) -> str:
     if "<" in text and ">" in text:
         return (
             f"<!doctype html><html lang=\"zh-CN\"><head>"
-            f"<meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>"
+            "<meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/>"
             f"<title>{title}</title></head><body>{text}</body></html>"
         )
     return text
+
+
+def call_mcp_save_via_llm(
+    *,
+    arguments: dict[str, Any],
+    mcp_base_url: str,
+    model: str | None = None,
+) -> dict[str, Any]:
+    """
+    Use function-calling to ask the LLM which arguments to send to the MCP save_summary tool,
+    execute the tool call, and return the MCP result.
+    """
+    client = _get_client()
+    model = model or LLM_MODEL
+
+    save_summary_schema = {
+        "type": "object",
+        "properties": {
+            "user_input": {"type": "string", "description": "原始输入文本，可为空"},
+            "urls": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "相关网页链接列表，可为空列表",
+            },
+            "filenames": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "关联的本地文件名列表，可为空列表",
+            },
+            "html_content": {
+                "type": "string",
+                "description": "完整 HTML 内容，必须提供",
+            },
+            "title": {"type": "string", "description": "摘要标题，可选"},
+            "source_view_url": {"type": "string", "description": "原始预览地址，可选"},
+            "result_id": {"type": "string", "description": "前端生成的摘要 ID，可选"},
+        },
+        "required": ["html_content"],
+        "additionalProperties": False,
+    }
+
+    user_message = (
+        "请基于提供的摘要数据调用 `save_summary` 工具，确保 HTML 内容原样传递。"
+        "如无额外补充，不要改动字段，仅按 JSON schema 输出参数。"
+    )
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": "你是一个负责调用保存摘要工具的助手。只允许通过工具返回结果，不要输出额外文本。",
+            },
+            {"role": "user", "content": user_message},
+            {"role": "user", "content": json.dumps(arguments, ensure_ascii=False)},
+        ],
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "save_summary",
+                    "description": "保存摘要 HTML 内容到 MCP 服务",
+                    "parameters": save_summary_schema,
+                },
+            }
+        ],
+        tool_choice={"type": "function", "function": {"name": "save_summary"}},
+        temperature=0,
+    )
+
+    message = response.choices[0].message
+    tool_calls = getattr(message, "tool_calls", None) or []
+    if not tool_calls:
+        raise RuntimeError("LLM 未返回保存摘要的工具调用结果")
+    tool_call = tool_calls[0]
+    try:
+        tool_arguments = json.loads(tool_call.function.arguments or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"解析 LLM 工具参数失败: {exc}") from exc
+
+    # 后备：如果 LLM 未携带关键字段，补上原始 arguments
+    if "html_content" not in tool_arguments:
+        tool_arguments["html_content"] = arguments.get("html_content", "")
+    if "urls" not in tool_arguments:
+        tool_arguments["urls"] = arguments.get("urls", [])
+    if "filenames" not in tool_arguments:
+        tool_arguments["filenames"] = arguments.get("filenames", [])
+    if "user_input" not in tool_arguments:
+        tool_arguments["user_input"] = arguments.get("user_input", "")
+    for key in ("title", "source_view_url", "result_id"):
+        if key not in tool_arguments and key in arguments:
+            tool_arguments[key] = arguments[key]
+
+    rpc_payload = {
+        "jsonrpc": "2.0",
+        "id": int(time.time() * 1000),
+        "method": "call_tool",
+        "params": {
+            "name": "save_summary",
+            "arguments": tool_arguments,
+        },
+    }
+
+    try:
+        import httpx  # type: ignore
+    except ImportError as exc:
+        raise RuntimeError("请安装 httpx 以调用 MCP 服务：pip install httpx") from exc
+
+    with httpx.Client(trust_env=True, timeout=60.0) as client_http:
+        response = client_http.post(
+            f"{mcp_base_url.rstrip('/')}/mcp",
+            json=rpc_payload,
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+    if isinstance(payload, dict) and payload.get("error"):
+        message = payload["error"].get("message") if isinstance(payload["error"], dict) else str(payload["error"])
+        raise RuntimeError(message or "MCP 返回错误")
+
+    if not isinstance(payload, dict) or "result" not in payload:
+        raise RuntimeError("MCP 响应不合法")
+
+    return payload["result"]
